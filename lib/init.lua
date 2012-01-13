@@ -10,7 +10,7 @@ local transport_handlers = {
   xhr = require('./xhr-polling'),
   jsonp = require('./jsonp-polling'),
   xhr_streaming = require('./xhr-streaming'),
-  websocket = { GET = true },
+  websocket = require('./websocket'),
   htmlfile = require('./htmlfile'),
   eventsource = require('./eventsource')
 }
@@ -46,19 +46,7 @@ local function SockJS_handler(options)
   -- compose raw websocket handler
   local raw_websocket
   if not options.disabled_transports.websocket then
-    options.new = function (res, options)
-      -- N.B. create_session uses send_frame...
-      --local conn = res:create_session(res.req, res, nil, options)
-      local conn = Session.get_or_create(nil, options)
-      res.send_frame = res.send
-      conn:bind(res.req, res)
-    end
     raw_websocket = require('websocket')(options)
-    transport_handlers.websocket = {
-      GET = function (res, options)
-        raw_websocket(res.req, res)
-      end
-    }
   end
 
   -- handler
