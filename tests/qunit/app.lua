@@ -8,6 +8,7 @@ local app = require('app').new()
 app:mount('/echo', require('sockjs')({
   root = 'WS',
   response_limit = 4096,
+  cookie_needed = true,
   sockjs_url = '/sockjs.js',
   onopen = function (conn)
     --p('OPEN', conn)
@@ -33,6 +34,7 @@ app:mount('/echo', require('sockjs')({
 app:mount('/disabled_websocket_echo', require('sockjs')({
   root = 'WS1',
   response_limit = 4096,
+  cookie_needed = true,
   sockjs_url = '/sockjs.js',
   disabled_transports = { websocket = true },
   onopen = function (conn)
@@ -59,6 +61,7 @@ app:mount('/disabled_websocket_echo', require('sockjs')({
 app:mount('/close', require('sockjs')({
   root = 'WS2',
   response_limit = 4096,
+  cookie_needed = true,
   sockjs_url = '/sockjs.js',
   onopen = function (conn)
     p('/CLOSE\\', conn.sid, conn.id)

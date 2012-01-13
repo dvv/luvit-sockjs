@@ -13,7 +13,7 @@ return {
     self:set_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
     self:finish(JSON.stringify({
       websocket = not options.disabled_transports.websocket,
-      cookie_needed = false,
+      cookie_needed = options.cookie_needed,
       origins = options.origins,
     }))
   end,
