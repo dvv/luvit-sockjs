@@ -7,6 +7,7 @@ local allowed_content_types = {
     ['application/json'] = JSON.parse,
     ['text/plain'] = JSON.parse,
     ['application/xml'] = JSON.parse,
+    ['text/xml'] = JSON.parse,
     ['T'] = JSON.parse,
     [''] = JSON.parse
   },
