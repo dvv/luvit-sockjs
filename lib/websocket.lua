@@ -3,6 +3,8 @@
 --
 
 local Table = require('table')
+local JSON = require('json')
+
 local WebSocket_Hixie76 = require('websocket/lib/hixie76')
 local WebSocket_Hybi10 = require('websocket/lib/hybi10')
 
@@ -50,6 +52,16 @@ local function handler(self, options)
   shaker.handshake(self, origin, location, function ()
     -- setup sender
     self.send_frame = self.send
+    -- setup receiver
+    self:on('message', function (raw)
+      local status, message = pcall(JSON.parse, raw)
+      --p('INM', status, message)
+      if not status then
+        self.session:close(1002, 'Broken framing.')
+      else
+        self.session:onmessage(message)
+      end
+    end)
     -- and register connection
     self:create_session(self.req, self, nil, options)
   end)
