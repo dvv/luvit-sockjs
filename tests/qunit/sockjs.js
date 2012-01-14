@@ -797,7 +797,7 @@ var SockJS = function(url, protocols_whitelist, options) {
             that._applyInfo(info, rtt, protocols_whitelist);
             that._didClose();
         } else {
-            that._didClose(3000, 'Can\'t connect to server');
+            that._didClose(2000, 'Can\'t connect to server');
         }
     };
 };
