@@ -39,7 +39,11 @@ local function SockJS_handler(options)
       '*:*'
     },
     disabled_transports = { },
-    cache_age = 365 * 24 * 60 * 60
+    cache_age = 365 * 24 * 60 * 60,
+    onopen = function (self) end,
+    onclose = function (self) end,
+    onerror = function (self, error) end,
+    onmessage = function (self, message) end,
   }) do if options[k] == nil then options[k] = v end
   end
 

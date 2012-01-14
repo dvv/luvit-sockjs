@@ -79,7 +79,6 @@ Session = (function()
         self.to_tref = nil
       end
       self:flush()
-      return 
     end,
     unbind = function(self)
       if self.conn then
@@ -90,7 +89,6 @@ Session = (function()
         clear_timer(self.to_tref)
       end
       self.to_tref = set_timeout(self.disconnect_delay, self.ontimeout, self)
-      return 
     end,
     ontimeout = function(self)
       if self.to_tref then

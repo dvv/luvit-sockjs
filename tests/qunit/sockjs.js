@@ -1,4 +1,4 @@
-/* SockJS client, version 0.1.2.37.g191f, http://sockjs.org, MIT License
+/* SockJS client, version 0.1.2.52.g8d4b, http://sockjs.org, MIT License
 
 Copyright (C) 2011 VMware, Inc.
 
@@ -258,6 +258,11 @@ utils.arrSkip = function(arr, obj) {
     }
 };
 
+// Via: https://gist.github.com/1133122/2121c601c5549155483f50be3da5305e83b8c5df
+utils.isArray = Array.isArray || function(value) {
+    return {}.toString.call(value).indexOf('Array') >= 0
+};
+
 utils.delay = function(t, fun) {
     if(typeof t === 'function') {
         fun = t;
@@ -353,6 +358,71 @@ utils.quote = function(string) {
     return quoted.replace(extra_escapable, function(a) {
         return extra_lookup[a];
     });
+}
+
+var _all_protocols = ['websocket',
+                      'xdr-streaming',
+                      'xhr-streaming',
+                      'iframe-eventsource',
+                      'iframe-htmlfile',
+                      'xdr-polling',
+                      'xhr-polling',
+                      'iframe-xhr-polling',
+                      'jsonp-polling'];
+
+utils.probeProtocols = function() {
+    var probed = {};
+    for(var i=0; i<_all_protocols.length; i++) {
+        var protocol = _all_protocols[i];
+        // User can have a typo in protocol name.
+        probed[protocol] = SockJS[protocol] &&
+                           SockJS[protocol].enabled();
+    }
+    return probed;
+};
+
+utils.detectProtocols = function(probed, protocols_whitelist, info) {
+    var pe = {},
+        protocols = [];
+    if (!protocols_whitelist) protocols_whitelist = _all_protocols;
+    for(var i=0; i<protocols_whitelist.length; i++) {
+        var protocol = protocols_whitelist[i];
+        pe[protocol] = probed[protocol];
+    }
+    var maybe_push = function(protos) {
+        var proto = protos.shift();
+        if (pe[proto]) {
+            protocols.push(proto);
+        } else {
+            if (protos.length > 0) {
+                maybe_push(protos);
+            }
+        }
+    }
+
+    // 1. Websocket
+    if (info.websocket !== false) {
+        maybe_push(['websocket']);
+    }
+
+    // 2. Streaming
+    if (pe['xdr-streaming'] && !info.cookie_needed) {
+        protocols.push('xdr-streaming');
+    } else {
+        maybe_push(['xhr-streaming',
+                    'iframe-eventsource',
+                    'iframe-htmlfile']);
+    }
+
+    // 3. Polling
+    if (pe['xdr-polling'] && !info.cookie_needed) {
+        protocols.push('xdr-polling');
+    } else {
+        maybe_push(['xhr-polling',
+                    'iframe-xhr-polling',
+                    'jsonp-polling']);
+    }
+    return protocols;
 }
 //         [*] End of lib/utils.js
 
@@ -697,19 +767,11 @@ XDRObject.prototype.close = function() {
     that.nuke();
     that._cleanup(true);
 };
-
-utils.createXHR = function(cors, method, url, payload) {
-    var XHRConstructor = XHRObject;
-    if (cors) {
-        XHRConstructor = _window.XDomainRequest ? XDRObject : XHRObject;
-    }
-    return new XHRConstructor(method, url, payload);
-};
 //         [*] End of lib/dom2.js
 
 
 //         [*] Including lib/sockjs.js
-var SockJS = function(url, protocols, options) {
+var SockJS = function(url, protocols_whitelist, options) {
     var that = this;
     that._options = {devel: false, debug: false, info: undefined};
     if (options) {
@@ -717,38 +779,32 @@ var SockJS = function(url, protocols, options) {
     }
     that._base_url = utils.amendUrl(url);
     that._server = that._options.server || utils.random_number_string(1000);
-    that._protocols = ['websocket',
-                       'xhr-streaming',
-                       'iframe-eventsource',
-                       'iframe-htmlfile',
-                       'xhr-polling',
-                       'iframe-xhr-polling',
-                       'jsonp-polling'];
-    switch (typeof protocols) {
-    case 'undefined': break;
-    case 'string': that._protocols = [protocols]; break;
-    default: that._protocols = protocols; break;
+    if (typeof protocols_whitelist === 'string') {
+        protocols_whitelist = [protocols_whitelist];
+    } else if (!utils.isArray(protocols_whitelist)) {
+        protocols_whitelist = [];
     }
+    that._protocols = [];
     that.protocol = null;
     that.readyState = SockJS.CONNECTING;
-    if (!that._options.info) {
-        var ir = createInfoReceiver(that._base_url);
-        ir.onfinish = function(info, rtt) {
-            if (info) {
-                that._applyInfo({info: info, rtt:rtt});
-                that._didClose();
-            } else {
-                that._didClose(3000, 'Can\'t connect to server');
+    var ir = createInfoReceiver(that._base_url);
+    ir.onfinish = function(info, rtt) {
+        if (info) {
+            if (that._options.info) {
+                // Override if user supplies the option
+                info = that._options.info;
             }
-        };
-    } else {
-        that._didClose();
-    }
+            that._applyInfo(info, rtt, protocols_whitelist);
+            that._didClose();
+        } else {
+            that._didClose(3000, 'Can\'t connect to server');
+        }
+    };
 };
 // Inheritance
 SockJS.prototype = new REventTarget();
 
-SockJS.version = "0.1.2.37.g191f";
+SockJS.version = "0.1.2.52.g8d4b";
 
 SockJS.CONNECTING = 0;
 SockJS.OPEN = 1;
@@ -925,10 +981,13 @@ SockJS.prototype.send = function(data) {
     return true;
 };
 
-SockJS.prototype._applyInfo = function(data) {
+SockJS.prototype._applyInfo = function(info, rtt, protocols_whitelist) {
     var that = this;
-    that._options.info = data.info;
-    that._options.rto = utils.countRTO(data.rtt);
+    that._options.info = info;
+    that._options.rtt = rtt;
+    that._options.rto = utils.countRTO(rtt);
+    var probed = utils.probeProtocols();
+    that._protocols = utils.detectProtocols(probed, protocols_whitelist, info);
 };
 //         [*] End of lib/sockjs.js
 
@@ -944,7 +1003,7 @@ var WebSocketTransport = SockJS.websocket = function(ri, trans_url) {
     }
     that.ri = ri;
     that.url = url;
-    var Constructor = window.WebSocket || window.MozWebSocket;
+    var Constructor = _window.WebSocket || _window.MozWebSocket;
 
     if(_document_guard.state >= DocumentGuard.beforeunload) {
         // Firefox has an interesting bug. If a websocket connection
@@ -979,9 +1038,8 @@ WebSocketTransport.prototype.doCleanup = function() {
     }
 };
 
-WebSocketTransport.enabled = function(options) {
-    return !!(window.WebSocket || window.MozWebSocket) &&
-        (!options.info || options.info.websocket !== false);
+WebSocketTransport.enabled = function() {
+    return !!(_window.WebSocket || _window.MozWebSocket);
 };
 //         [*] End of lib/trans-websocket.js
 
@@ -1103,21 +1161,16 @@ var jsonPGenericSender = function(url, payload, callback) {
     return completed;
 };
 
-var _sender = function(cors, url, payload, callback) {
-    var xo = utils.createXHR(cors, 'POST', url + '/xhr_send', payload);
-    xo.onfinish = function(status, text) {
-        callback(status);
+var createAjaxSender = function(AjaxObject) {
+    return function(url, payload, callback) {
+        var xo = new AjaxObject('POST', url + '/xhr_send', payload);
+        xo.onfinish = function(status, text) {
+            callback(status);
+        };
+        return function(abort_reason) {
+            callback(0, abort_reason);
+        };
     };
-    return function(abort_reason) {
-        callback(0, abort_reason);
-    };
-};
-
-var ajaxSender = function(url, payload, callback) {
-    return _sender(false, url, payload, callback);
-};
-var xdrSender = function(url, payload, callback) {
-    return _sender(true, url, payload, callback);
 };
 //         [*] End of lib/trans-sender.js
 
@@ -1314,61 +1367,77 @@ var jsonPReceiverWrapper = function(url, constructReceiver, user_callback) {
 
 
 //         [*] Including lib/trans-xhr-streaming.js
-var XhrStreamingTransport = SockJS['xhr-streaming'] = function (ri, trans_url) {
+var AjaxBasedTransport = function() {};
+AjaxBasedTransport.prototype = new BufferedSender();
+
+AjaxBasedTransport.prototype.run = function(ri, trans_url,
+                                            url_suffix, Receiver, AjaxObject) {
     var that = this;
     that.ri = ri;
     that.trans_url = trans_url;
-    that.send_constructor(xdrSender);
-    that.poll = new Polling(ri, XhrReceiver,
-                            trans_url + '/xhr_streaming',
-                            {cors: true});
+    that.send_constructor(createAjaxSender(AjaxObject));
+    that.poll = new Polling(ri, Receiver,
+                            trans_url + url_suffix, AjaxObject);
 };
 
-// Inheritnace
-XhrStreamingTransport.prototype = new BufferedSender();
-
-XhrStreamingTransport.prototype.doCleanup = function() {
+AjaxBasedTransport.prototype.doCleanup = function() {
     var that = this;
     if (that.poll) {
         that.poll.abort();
         that.poll = null;
     }
+};
+
+
+// xhr-streaming
+var XhrStreamingTransport = SockJS['xhr-streaming'] = function(ri, trans_url) {
+    this.run(ri, trans_url, '/xhr_streaming', XhrReceiver, utils.XHRObject);
+};
+
+XhrStreamingTransport.prototype = new AjaxBasedTransport();
+
+XhrStreamingTransport.enabled = function() {
+    return (_window.XMLHttpRequest &&
+            'withCredentials' in new XMLHttpRequest());
 };
 
 // According to:
 //   http://stackoverflow.com/questions/1641507/detect-browser-support-for-cross-domain-xmlhttprequests
 //   http://hacks.mozilla.org/2009/07/cross-site-xmlhttprequest-with-cors/
-XhrStreamingTransport.enabled = function(options) {
-    if (options.cookie !== true && window.XDomainRequest) return true;
-    if (window.XMLHttpRequest &&
-        'withCredentials' in new XMLHttpRequest()) return true;
-    return false;
-};
-//         [*] End of lib/trans-xhr-streaming.js
 
 
-//         [*] Including lib/trans-xhr-polling.js
-var XhrPollingTransport = SockJS['xhr-polling'] = function (ri, trans_url) {
-    var that = this;
-    that.ri = ri;
-    that.trans_url = trans_url;
-    that.send_constructor(xdrSender);
-    that.poll = new Polling(ri, XhrReceiver, trans_url + '/xhr', {cors: true});
+// xdr-streaming
+var XdrStreamingTransport = SockJS['xdr-streaming'] = function(ri, trans_url) {
+    this.run(ri, trans_url, '/xhr_streaming', XhrReceiver, utils.XDRObject);
 };
 
-// Inheritnace
-XhrPollingTransport.prototype = new BufferedSender();
+XdrStreamingTransport.prototype = new AjaxBasedTransport();
 
-XhrPollingTransport.prototype.doCleanup = function() {
-    var that = this;
-    if (that.poll) {
-        that.poll.abort();
-        that.poll = null;
-    }
+XdrStreamingTransport.enabled = function() {
+    return !!_window.XDomainRequest;
 };
+
+
+
+// xhr-polling
+var XhrPollingTransport = SockJS['xhr-polling'] = function(ri, trans_url) {
+    this.run(ri, trans_url, '/xhr', XhrReceiver, utils.XHRObject);
+};
+
+XhrPollingTransport.prototype = new AjaxBasedTransport();
 
 XhrPollingTransport.enabled = XhrStreamingTransport.enabled;
-//         [*] End of lib/trans-xhr-polling.js
+
+
+// xdr-polling
+var XdrPollingTransport = SockJS['xdr-polling'] = function(ri, trans_url) {
+    this.run(ri, trans_url, '/xhr', XhrReceiver, utils.XDRObject);
+};
+
+XdrPollingTransport.prototype = new AjaxBasedTransport();
+
+XdrPollingTransport.enabled = XdrStreamingTransport.enabled;
+//         [*] End of lib/trans-xhr-streaming.js
 
 
 //         [*] Including lib/trans-iframe.js
@@ -1550,7 +1619,8 @@ InfoReceiver.prototype = new EventEmitter(['finish']);
 
 InfoReceiver.prototype.doXhr = function() {
     var that = this;
-    var xo = utils.createXHR(true, 'GET', that.base_url + '/info' , null);
+    var AjaxObject = _window.XDomainRequest ? utils.XDRObject : utils.XHRObject;
+    var xo = new AjaxObject('GET', that.base_url + '/info' , null);
     xo.onfinish = function(status, text) {
         if (status === 200) {
             var rtt = (new Date()).getTime() - that.t0;
@@ -1642,35 +1712,21 @@ var EventSourceIframeTransport = SockJS['iframe-eventsource'] = function () {
     that.i_constructor.apply(that, arguments);
 };
 
-// Inheritance.
 EventSourceIframeTransport.prototype = new IframeTransport();
 
 EventSourceIframeTransport.enabled = function () {
-    return ('EventSource' in window) && IframeTransport.enabled();
+    return ('EventSource' in _window) && IframeTransport.enabled();
 };
 
 EventSourceIframeTransport.need_body = true;
 EventSourceIframeTransport.roundTrips = 3; // html, javascript, eventsource
 
 
-var EventSourceTransport = FacadeJS['w-iframe-eventsource'] = function (ri, trans_url) {
-    var that = this;
-    that.ri = ri;
-    that.trans_url = trans_url;
-    that.send_constructor(ajaxSender);
-    that.poll = new Polling(ri, EventSourceReceiver, trans_url + '/eventsource');
-};
-
-// Inheritnace
-EventSourceTransport.prototype = new BufferedSender();
-
-EventSourceTransport.prototype.doCleanup = function() {
-    var that = this;
-    if (that.poll) {
-        that.poll.abort();
-        that.poll = null;
-    }
-};
+// w-iframe-eventsource
+var EventSourceTransport = FacadeJS['w-iframe-eventsource'] = function(ri, trans_url) {
+    this.run(ri, trans_url, '/eventsource', EventSourceReceiver, utils.XHRObject);
+}
+EventSourceTransport.prototype = new AjaxBasedTransport();
 //         [*] End of lib/trans-iframe-eventsource.js
 
 
@@ -1681,35 +1737,22 @@ var XhrPollingIframeTransport = SockJS['iframe-xhr-polling'] = function () {
     that.i_constructor.apply(that, arguments);
 };
 
-// Inheritance.
 XhrPollingIframeTransport.prototype = new IframeTransport();
 
 XhrPollingIframeTransport.enabled = function () {
-    return window.XMLHttpRequest && IframeTransport.enabled();
+    return _window.XMLHttpRequest && IframeTransport.enabled();
 };
 
 XhrPollingIframeTransport.need_body = true;
 XhrPollingIframeTransport.roundTrips = 3; // html, javascript, xhr
 
 
-var XhrPollingITransport = FacadeJS['w-iframe-xhr-polling'] = function (ri, trans_url) {
-    var that = this;
-    that.trans_url = trans_url;
-    that.send_constructor(ajaxSender);
-    that.poll = new Polling(ri, XhrReceiver, trans_url + '/xhr', {cors: false});
+// w-iframe-xhr-polling
+var XhrPollingITransport = FacadeJS['w-iframe-xhr-polling'] = function(ri, trans_url) {
+    this.run(ri, trans_url, '/xhr', XhrReceiver, utils.XHRObject);
 };
 
-
-// Inheritnace
-XhrPollingITransport.prototype = new BufferedSender();
-
-XhrPollingITransport.prototype.doCleanup = function() {
-    var that = this;
-    if (that.poll) {
-        that.poll.abort();
-        that.poll = null;
-    }
-};
+XhrPollingITransport.prototype = new AjaxBasedTransport();
 //         [*] End of lib/trans-iframe-xhr-polling.js
 
 
@@ -1728,50 +1771,36 @@ var HtmlFileIframeTransport = SockJS['iframe-htmlfile'] = function () {
 // Inheritance.
 HtmlFileIframeTransport.prototype = new IframeTransport();
 
-HtmlFileIframeTransport.enabled = function (options) {
-    // Development or IE  _and_  iframe postWindow working.
-    var ie = isIeHtmlfileCapable();
-    return (options.cookie !== false && IframeTransport.enabled());
+HtmlFileIframeTransport.enabled = function() {
+    return IframeTransport.enabled();
 };
 
 HtmlFileIframeTransport.need_body = true;
 HtmlFileIframeTransport.roundTrips = 3; // html, javascript, htmlfile
 
 
-var HtmlFileTransport = FacadeJS['w-iframe-htmlfile'] = function (ri, trans_url) {
-    var that = this;
-    that.trans_url = trans_url;
-    that.send_constructor(ajaxSender);
-    that.poll = new Polling(ri, HtmlfileReceiver, trans_url + '/htmlfile');
+// w-iframe-htmlfile
+var HtmlFileTransport = FacadeJS['w-iframe-htmlfile'] = function(ri, trans_url) {
+    this.run(ri, trans_url, '/htmlfile', HtmlfileReceiver, utils.XHRObject);
 };
-
-// Inheritnace
-HtmlFileTransport.prototype = new BufferedSender();
-
-HtmlFileTransport.prototype.doCleanup = function() {
-    var that = this;
-    if (that.poll) {
-        that.poll.abort();
-        that.poll = null;
-    }
-};
+HtmlFileTransport.prototype = new AjaxBasedTransport();
 //         [*] End of lib/trans-iframe-htmlfile.js
 
 
 //         [*] Including lib/trans-polling.js
 
-var Polling = function(ri, Receiver, recv_url, opts) {
+var Polling = function(ri, Receiver, recv_url, AjaxObject) {
     var that = this;
     that.ri = ri;
     that.Receiver = Receiver;
     that.recv_url = recv_url;
-    that.opts = opts;
+    that.AjaxObject = AjaxObject;
     that._scheduleRecv();
 };
 
 Polling.prototype._scheduleRecv = function() {
     var that = this;
-    var poll = that.poll = new that.Receiver(that.recv_url, that.opts);
+    var poll = that.poll = new that.Receiver(that.recv_url, that.AjaxObject);
     var msg_counter = 0;
     poll.onmessage = function(e) {
         msg_counter += 1;
@@ -1841,7 +1870,7 @@ EventSourceReceiver.prototype.abort = function() {
 var _is_ie_htmlfile_capable;
 var isIeHtmlfileCapable = function() {
     if (_is_ie_htmlfile_capable === undefined) {
-        if ('ActiveXObject' in window) {
+        if ('ActiveXObject' in _window) {
             try {
                 _is_ie_htmlfile_capable = !!new ActiveXObject('htmlfile');
             } catch (x) {}
@@ -1900,11 +1929,11 @@ HtmlfileReceiver.prototype.abort = function() {
 
 //         [*] Including lib/trans-receiver-xhr.js
 
-var XhrReceiver = function(url, opts) {
+var XhrReceiver = function(url, AjaxObject) {
     var that = this;
     var buf_pos = 0;
 
-    that.xo = utils.createXHR(true, 'POST', url);
+    that.xo = new AjaxObject('POST', url, null);
     that.xo.onchunk = function(status, text) {
         if (status !== 200) return;
         while (1) {
@@ -1916,7 +1945,8 @@ var XhrReceiver = function(url, opts) {
             that.dispatchEvent(new SimpleEvent('message', {data: msg}));
         }
     };
-    that.xo.onfinish = function(status) {
+    that.xo.onfinish = function(status, text) {
+        that.xo.onchunk(status, text);
         that.xo = null;
         var reason = status === 200 ? 'network' : 'permanent';
         that.dispatchEvent(new SimpleEvent('close', {reason: reason}));
