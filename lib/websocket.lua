@@ -55,8 +55,8 @@ local function handler(self, options)
     -- setup receiver
     self:on('message', function (raw)
       local status, message = pcall(JSON.parse, raw)
-      --p('INM', status, message)
       if not status then
+        p('BROKEN', raw)
         self.session:close(1002, 'Broken framing.')
       else
         self.session:onmessage(message)
