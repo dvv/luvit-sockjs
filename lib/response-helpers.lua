@@ -11,9 +11,16 @@ function Response.prototype:handle_xhr_cors()
 end
 
 function Response.prototype:handle_balancer_cookie()
-  -- FIXME: depends on req:parse_cookies() defined elsewhere
-  if not self.req.cookies and self.req.parse_cookies then
-    self.req:parse_cookies()
+  if not self.req.cookies then
+    self.req.cookies = { }
+    if self.req.headers.cookie then
+      for cookie in self.req.headers.cookie:gmatch('[^;]+') do
+        local name, value = cookie:match('%s*([^=%s]-)%s*=%s*([^%s]*)')
+        if name and value then
+          self.req.cookies[name] = value
+        end
+      end
+    end
   end
   local jsid = self.req.cookies['JSESSIONID'] or 'dummy'
   self:add_header('Set-Cookie', 'JSESSIONID=' .. jsid .. '; path=/')

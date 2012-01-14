@@ -4,11 +4,9 @@ process.env.DEBUG = '1'
 
 -- create application
 local app = require('app').new()
-local Connection = require('websocket/lib/connection')
 
 app:mount('/echo', require('sockjs')({
   root = 'WS',
-  new = Connection.new,
   response_limit = 4096,
   cookie_needed = true,
   sockjs_url = '/sockjs.js',
@@ -35,7 +33,6 @@ app:mount('/echo', require('sockjs')({
 
 app:mount('/disabled_websocket_echo', require('sockjs')({
   root = 'WS1',
-  new = Connection.new,
   response_limit = 4096,
   cookie_needed = true,
   sockjs_url = '/sockjs.js',
@@ -63,7 +60,6 @@ app:mount('/disabled_websocket_echo', require('sockjs')({
 
 app:mount('/close', require('sockjs')({
   root = 'WS2',
-  new = Connection.new,
   response_limit = 4096,
   cookie_needed = true,
   sockjs_url = '/sockjs.js',
@@ -75,7 +71,6 @@ app:mount('/close', require('sockjs')({
 
 app:mount('/amplify', require('sockjs')({
   root = 'WS3',
-  new = Connection.new,
   response_limit = 4096,
   cookie_needed = true,
   sockjs_url = '/sockjs.js',
@@ -99,7 +94,6 @@ app:mount('/amplify', require('sockjs')({
 local broadcast = { }
 app:mount('/broadcast', require('sockjs')({
   root = 'WS4',
-  new = Connection.new,
   response_limit = 4096,
   cookie_needed = true,
   sockjs_url = '/sockjs.js',

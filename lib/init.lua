@@ -40,6 +40,7 @@ local function SockJS_handler(options)
     },
     disabled_transports = { },
     cache_age = 365 * 24 * 60 * 60,
+    new = require('websocket/lib/connection').new,
     onopen = function (self) end,
     onclose = function (self) end,
     onerror = function (self, error) end,
