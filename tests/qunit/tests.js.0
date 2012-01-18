@@ -1,11 +1,9 @@
-var arrIndexOf, batch_factory_factory, batch_factory_factory_amp, echo_factory_factory, escapable, factor_batch_large, factor_batch_large_amp, factor_echo_basic, factor_echo_large_message, factor_echo_rich, factor_echo_special_chars, factor_echo_unicode, factor_echo_utf_encoding, factor_echo_utf_encoding_simple, factor_server_close, factor_user_close, generate_killer_string, newSockJS, protocol, protocols, test_protocol_messages, _i, _len;
-protocols = ['websocket', 'xdr-streaming', 'xhr-streaming', 'iframe-eventsource', 'iframe-htmlfile', 'xdr-polling', 'xhr-polling', 'iframe-xhr-polling', 'jsonp-polling'];
+var arrIndexOf, batch_factory_factory, batch_factory_factory_amp, echo_factory_factory, escapable, factor_batch_large, factor_batch_large_amp, factor_echo_basic, factor_echo_large_message, factor_echo_rich, factor_echo_special_chars, factor_echo_unicode, factor_echo_utf_encoding, factor_echo_utf_encoding_simple, factor_server_close, factor_user_close, generate_killer_string, newSockJS, protocol, protocols, test_invalid_url_404, test_invalid_url_500, test_invalid_url_port, test_protocol_errors, test_protocol_messages, _i, _j, _len, _len2;
+protocols = ['websocket', 'xhr-streaming', 'iframe-eventsource', 'iframe-htmlfile', 'xhr-polling', 'iframe-xhr-polling', 'jsonp-polling'];
 newSockJS = function(path, protocol) {
-  var options, url;
+  var url;
   url = /^http/.test(path) ? path : client_opts.url + path;
-  options = jQuery.extend({}, client_opts.sockjs_opts);
-  options.protocols_whitelist = [protocol];
-  return new SockJS(url, null, options);
+  return new SockJS(url, [protocol], client_opts.sockjs_opts);
 };
 echo_factory_factory = function(protocol, messages) {
   return function() {
@@ -14,6 +12,7 @@ echo_factory_factory = function(protocol, messages) {
     a = messages.slice(0);
     r = newSockJS('/echo', protocol);
     r.onopen = function(e) {
+      log('onopen ' + e);
       ok(true);
       return r.send(a[0]);
     };
@@ -206,7 +205,7 @@ factor_user_close = function(protocol) {
       return ok(counter === 1);
     };
     r.onmessage = function() {
-      ok(false);
+      fail(true);
       return counter += 1;
     };
     return r.onclose = function(e) {
@@ -228,12 +227,67 @@ factor_server_close = function(protocol) {
       return ok(true);
     };
     r.onmessage = function(e) {
-      return ok(false);
+      return fail(true);
     };
     return r.onclose = function(e) {
       equals(e.code, 3000);
       equals(e.reason, "Go away!");
       equals(e.wasClean, true);
+      return start();
+    };
+  };
+};
+test_invalid_url_404 = function(protocol) {
+  return function() {
+    var r;
+    expect(3);
+    r = newSockJS('/invalid_url', protocol);
+    ok(r);
+    r.onopen = function(e) {
+      return fail(true);
+    };
+    r.onmessage = function(e) {
+      return fail(true);
+    };
+    return r.onclose = function(e) {
+      log('404', e);
+      equals(e.code, 2000);
+      equals(e.wasClean, false);
+      return start();
+    };
+  };
+};
+test_invalid_url_500 = function(protocol) {
+  return function() {
+    var r;
+    expect(3);
+    r = newSockJS('/500_error', protocol);
+    ok(r);
+    r.onopen = function(e) {
+      return fail(true);
+    };
+    return r.onclose = function(e) {
+      log('500', e);
+      equals(e.code, 2000);
+      equals(e.wasClean, false);
+      return start();
+    };
+  };
+};
+test_invalid_url_port = function(protocol) {
+  return function() {
+    var dl, r;
+    expect(3);
+    dl = document.location;
+    r = newSockJS(dl.protocol + '//' + dl.hostname + ':1079', protocol);
+    ok(r);
+    r.onopen = function(e) {
+      return fail(true);
+    };
+    return r.onclose = function(e) {
+      log('port', e);
+      equals(e.code, 2000);
+      equals(e.wasClean, false);
       return start();
     };
   };
@@ -249,20 +303,20 @@ arrIndexOf = function(arr, obj) {
 };
 test_protocol_messages = function(protocol) {
   module(protocol);
-  if (!SockJS[protocol] || !SockJS[protocol].enabled()) {
+  if (!SockJS[protocol] || !SockJS[protocol].enabled(client_opts.sockjs_opts)) {
     return test("[unsupported by client]", function() {
       return log('Unsupported protocol (by client): "' + protocol + '"');
     });
   } else if (client_opts.disabled_transports && arrIndexOf(client_opts.disabled_transports, protocol) !== -1) {
-    return test("[disabled by config]", function() {
-      return log('Disabled by config: "' + protocol + '"');
+    return test("[unsupported by server]", function() {
+      return log('Unsupported protocol (by server): "' + protocol + '"');
     });
   } else {
     asyncTest("echo1", factor_echo_basic(protocol));
     asyncTest("echo2", factor_echo_rich(protocol));
     asyncTest("unicode", factor_echo_unicode(protocol));
     asyncTest("utf encoding 0x00-0xFF", factor_echo_utf_encoding_simple(protocol));
-    asyncTest("utf encoding killer message", factor_echo_utf_encoding(protocol));
+    //asyncTest("utf encoding killer message", factor_echo_utf_encoding(protocol));
     asyncTest("special_chars", factor_echo_special_chars(protocol));
     asyncTest("large message (ping-pong)", factor_echo_large_message(protocol));
     asyncTest("large message (batch)", factor_batch_large(protocol));
@@ -271,7 +325,84 @@ test_protocol_messages = function(protocol) {
     return asyncTest("server close", factor_server_close(protocol));
   }
 };
+test_protocol_errors = function(protocol) {
+  module(protocol);
+  if (!SockJS[protocol] || !SockJS[protocol].enabled(client_opts.sockjs_opts)) {
+    return test("[unsupported by client]", function() {
+      return log('Unsupported protocol (by client): "' + protocol + '"');
+    });
+  } else if (client_opts.disabled_transports && arrIndexOf(client_opts.disabled_transports, protocol) !== -1) {
+    return test("[unsupported by server]", function() {
+      return log('Unsupported protocol (by server): "' + protocol + '"');
+    });
+  } else {
+    asyncTest("invalid url 404", test_invalid_url_404(protocol));
+    asyncTest("invalid url 500", test_invalid_url_500(protocol));
+    return asyncTest("invalid url port", test_invalid_url_port(protocol));
+  }
+};
 for (_i = 0, _len = protocols.length; _i < _len; _i++) {
   protocol = protocols[_i];
   test_protocol_messages(protocol);
+}
+module('other');
+test("EventEmitter", function() {
+  var bluff, r, single;
+  expect(4);
+  r = new SockJS('//blah/abc', []);
+  r.addEventListener('message', function() {
+    return ok(true);
+  });
+  r.onmessage = function() {
+    return fail(true);
+  };
+  bluff = function() {
+    return fail(true);
+  };
+  r.addEventListener('message', bluff);
+  r.removeEventListener('message', bluff);
+  r.addEventListener('message', bluff);
+  r.addEventListener('message', function() {
+    return ok(true);
+  });
+  r.onmessage = function() {
+    return ok(true);
+  };
+  r.removeEventListener('message', bluff);
+  r.dispatchEvent({
+    type: 'message'
+  });
+  single = function() {
+    return ok(true);
+  };
+  r.addEventListener('close', single);
+  r.addEventListener('close', single);
+  r.dispatchEvent({
+    type: 'close'
+  });
+  r.removeEventListener('close', single);
+  return r.dispatchEvent({
+    type: 'close'
+  });
+});
+asyncTest("disabled websocket test", function() {
+  var r;
+  expect(3);
+  r = newSockJS('/disabled_websocket_echo', 'websocket');
+  r.onopen = function(e) {
+    return fail(true);
+  };
+  r.onmessage = function(e) {
+    return fail(true);
+  };
+  return r.onclose = function(e) {
+    equals(e.code, 2000);
+    equals(e.reason, "All transports failed");
+    equals(e.wasClean, false);
+    return start();
+  };
+});
+for (_j = 0, _len2 = protocols.length; _j < _len2; _j++) {
+  protocol = protocols[_j];
+  test_protocol_errors(protocol);
 }

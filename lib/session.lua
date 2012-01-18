@@ -62,12 +62,6 @@ Session = (function()
         p('ENDED')
         self:unbind()
       end)]]--
-      local _ = [==[ THIS IS DONE EARLIER
-    conn\once 'error', (err) ->
-      debug('ERROR', @sid, err)
-      --error(err)
-      conn\close()
-    ]==]
       self.req = req
       if self.ready_state == Session.CONNECTING then
         self.conn:send_frame('o')

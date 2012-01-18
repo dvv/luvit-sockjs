@@ -5,8 +5,8 @@
 local Table = require('table')
 local JSON = require('json')
 
-local WebSocket_Hixie76 = require('websocket/lib/hixie76')
-local WebSocket_Hybi10 = require('websocket/lib/hybi10')
+local WebSocket_Hixie76 = require('websocket/lib/hixie76').handshake
+local WebSocket_Hybi10 = require('websocket/lib/hybi10').handshake
 
 local function verify_origin(origin, origins)
   return true
@@ -49,11 +49,11 @@ local function handler(self, options)
   self.curr_size, self.max_size = 0, options.response_limit
 
   -- handshake...
-  shaker.handshake(self, origin, location, function ()
+  shaker.handshake(self.req, self, origin, location, function ()
     -- setup sender
     self.send_frame = self.send
     -- setup receiver
-    self:on('message', function (raw)
+    self.req:on('message', function (raw)
       local status, message = pcall(JSON.parse, raw)
       if not status then
         p('BROKEN', raw)

@@ -1,11 +1,11 @@
 return {
   name = 'sockjs',
   version = '0.0.1',
-  description = "SockJS server implemented in Luvit",
-  keywords = { "websocket", "sockjs", "real-time", "stack", "luvit", "libuv" },
-  author = "Vladimir Dronnikov <dronnikov@gmail.com>",
+  description = 'SockJS server implemented in Luvit',
+  keywords = { 'websocket', 'sockjs', 'real-time', 'stack', 'luvit', 'libuv' },
+  author = 'Vladimir Dronnikov <dronnikov@gmail.com>',
   dependencies = {
-    websocket = "https://github.com/luvit/websocket/zipball/master",
-    app = "https://github.com/luvit/app/zipball/master",
+    websocket = 'https://github.com/luvit/websocket/zipball/master',
+    app = 'https://github.com/luvit/app/zipball/master',
   },
 }

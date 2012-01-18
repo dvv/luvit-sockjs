@@ -1,4 +1,4 @@
-/* SockJS client, version 0.1.2.52.g8d4b, http://sockjs.org, MIT License
+/* SockJS client, version 0.2.0, http://sockjs.org, MIT License
 
 Copyright (C) 2011 VMware, Inc.
 
@@ -30,6 +30,8 @@ var JSON;JSON||(JSON={}),function(){function str(a,b){var c,d,e,f,g=gap,h,i=b[a]
 SockJS = (function(){
               var _document = document;
               var _window = window;
+              var utils = {};
+
 
 //         [*] Including lib/reventtarget.js
 /* Simplified implementation of DOM2 EventTarget.
@@ -134,7 +136,6 @@ EventEmitter.prototype.nuke = function(type) {
 
 
 //         [*] Including lib/utils.js
-var utils = {};
 var random_string_chars = 'abcdefghijklmnopqrstuvwxyz0123456789_';
 utils.random_string = function(length, max) {
     max = max || random_string_chars.length;
@@ -575,9 +576,9 @@ utils.createHtmlfile = function (iframe_url, error_callback) {
     };
 
     doc.open();
-    doc.write('<html><script>' +
+    doc.write('<html><s' + 'cript>' +
               'document.domain="' + document.domain + '";' +
-              '</script></html>');
+              '</s' + 'cript></html>');
     doc.close();
     doc.parentWindow[WPrefix] = _window[WPrefix];
     var c = doc.createElement('div');
@@ -593,38 +594,6 @@ utils.createHtmlfile = function (iframe_url, error_callback) {
         loaded: unattach
     };
 };
-
-var DocumentGuard = function() {
-    var that = this;
-    var emit = function(state_name) {
-        that.state = DocumentGuard[state_name];
-        var e = {state: that.state, name: state_name};
-        that.dispatchEvent(new SimpleEvent('change', e));
-        that.dispatchEvent(new SimpleEvent(state_name, e));
-    };
-    emit('init');
-    if(!!_document.body) {
-        emit('load');
-    } else {
-        utils.attachEvent('load', function() {
-            emit('load');
-        });
-    }
-    utils.attachEvent('beforeunload', function() {
-        emit('beforeunload');
-    });
-    utils.attachEvent('unload', function() {
-        emit('unload');
-    });
-};
-
-DocumentGuard.prototype = new REventTarget();
-DocumentGuard.init = 0;
-DocumentGuard.load = 1;
-DocumentGuard.beforeunload = 2;
-DocumentGuard.unload = 3;
-
-var _document_guard = new DocumentGuard();
 //         [*] End of lib/dom.js
 
 
@@ -767,22 +736,54 @@ XDRObject.prototype.close = function() {
     that.nuke();
     that._cleanup(true);
 };
+
+// 1. Is natively via XHR
+// 2. Is natively via XDR
+// 3. Nope, but postMessage is there so it should work via the Iframe.
+// 4. Nope, sorry.
+utils.isXHRCorsCapable = function() {
+    if (_window.XMLHttpRequest && 'withCredentials' in new XMLHttpRequest()) {
+        return 1;
+    }
+    if (_window.XDomainRequest) {
+        return 2;
+    }
+    if (IframeTransport.enabled()) {
+        return 3;
+    }
+    return 4;
+};
 //         [*] End of lib/dom2.js
 
 
 //         [*] Including lib/sockjs.js
-var SockJS = function(url, protocols_whitelist, options) {
-    var that = this;
-    that._options = {devel: false, debug: false, info: undefined};
+var SockJS = function(url, dep_protocols_whitelist, options) {
+    var that = this, protocols_whitelist;
+    that._options = {devel: false, debug: false, protocols_whitelist: [],
+                     info: undefined, rtt: undefined};
     if (options) {
         utils.objectExtend(that._options, options);
     }
     that._base_url = utils.amendUrl(url);
     that._server = that._options.server || utils.random_number_string(1000);
-    if (typeof protocols_whitelist === 'string') {
-        protocols_whitelist = [protocols_whitelist];
-    } else if (!utils.isArray(protocols_whitelist)) {
-        protocols_whitelist = [];
+    if (that._options.protocols_whitelist &&
+        that._options.protocols_whitelist.length) {
+        protocols_whitelist = that._options.protocols_whitelist;
+    } else {
+        // Deprecated API
+        if (typeof dep_protocols_whitelist === 'string' &&
+            dep_protocols_whitelist.length > 0) {
+            protocols_whitelist = [dep_protocols_whitelist];
+        } else if (utils.isArray(dep_protocols_whitelist)) {
+            protocols_whitelist = dep_protocols_whitelist
+        } else {
+            protocols_whitelist = null;
+        }
+        if (protocols_whitelist) {
+            that._debug('Deprecated API: Use "protocols_whitelist" option ' +
+                        'instead of supplying protocol list as a second ' +
+                        'parameter to SockJS constructor.');
+        }
     }
     that._protocols = [];
     that.protocol = null;
@@ -794,17 +795,20 @@ var SockJS = function(url, protocols_whitelist, options) {
                 // Override if user supplies the option
                 info = that._options.info;
             }
+            if (that._options.rtt) {
+                rtt = that._options.rtt;
+            }
             that._applyInfo(info, rtt, protocols_whitelist);
             that._didClose();
         } else {
-            that._didClose(2000, 'Can\'t connect to server');
+            that._didClose(1002, 'Can\'t connect to server', true);
         }
     };
 };
 // Inheritance
 SockJS.prototype = new REventTarget();
 
-SockJS.version = "0.1.2.52.g8d4b";
+SockJS.version = "0.2.0";
 
 SockJS.CONNECTING = 0;
 SockJS.OPEN = 1;
@@ -846,7 +850,7 @@ SockJS.prototype._dispatchHeartbeat = function(data) {
     that.dispatchEvent(new SimpleEvent('heartbeat', {}));
 };
 
-SockJS.prototype._didClose = function(code, reason) {
+SockJS.prototype._didClose = function(code, reason, force) {
     var that = this;
     if (that.readyState !== SockJS.CONNECTING &&
         that.readyState !== SockJS.OPEN &&
@@ -856,11 +860,13 @@ SockJS.prototype._didClose = function(code, reason) {
         that._transport.doCleanup();
     that._transport = null;
 
-    var close_event = new SimpleEvent("close", {code: code,
-                                                reason: reason,
-                                                wasClean: utils.userSetCode(code)});
+    var close_event = new SimpleEvent("close", {
+        code: code,
+        reason: reason,
+        wasClean: utils.userSetCode(code)});
 
-    if (!utils.userSetCode(code) && that.readyState === SockJS.CONNECTING) {
+    if (!utils.userSetCode(code) &&
+        that.readyState === SockJS.CONNECTING && !force) {
         if (that._try_next_protocol(close_event)) {
             return;
         }
@@ -1005,20 +1011,17 @@ var WebSocketTransport = SockJS.websocket = function(ri, trans_url) {
     that.url = url;
     var Constructor = _window.WebSocket || _window.MozWebSocket;
 
-    if(_document_guard.state >= DocumentGuard.beforeunload) {
-        // Firefox has an interesting bug. If a websocket connection
-        // is created after onbeforeunload, it stays alive even when
-        // user navigates away from the page. In such situation let's
-        // lie - let's not open the ws connection at all. See:
-        // https://github.com/sockjs/sockjs-client/issues/28
-        utils.log("Can't open a WebSocket connection after onbeforeunload!");
-        return;
-    }
-
     that.ws = new Constructor(that.url);
     that.ws.onmessage = function(e) {
         that.ri._didMessage(e.data);
     };
+    // Firefox has an interesting bug. If a websocket connection is
+    // created after onbeforeunload, it stays alive even when user
+    // navigates away from the page. In such situation let's lie -
+    // let's not open the ws connection at all. See:
+    // https://github.com/sockjs/sockjs-client/issues/28
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=696085
+    that.unload_ref = utils.unload_add(function(){that.ws.close()});
     that.ws.onclose = function() {
         that.ri._didMessage(utils.closeFrame(1006, "WebSocket connection broken"));
     };
@@ -1034,7 +1037,8 @@ WebSocketTransport.prototype.doCleanup = function() {
     if (ws) {
         ws.onmessage = ws.onclose = null;
         ws.close();
-        that.ri = that.ws = null;
+        utils.unload_del(that.unload_ref);
+        that.unload_ref = that.ri = that.ws = null;
     }
 };
 
@@ -1366,7 +1370,7 @@ var jsonPReceiverWrapper = function(url, constructReceiver, user_callback) {
 //         [*] End of lib/trans-jsonp-polling.js
 
 
-//         [*] Including lib/trans-xhr-streaming.js
+//         [*] Including lib/trans-xhr.js
 var AjaxBasedTransport = function() {};
 AjaxBasedTransport.prototype = new BufferedSender();
 
@@ -1388,7 +1392,6 @@ AjaxBasedTransport.prototype.doCleanup = function() {
     }
 };
 
-
 // xhr-streaming
 var XhrStreamingTransport = SockJS['xhr-streaming'] = function(ri, trans_url) {
     this.run(ri, trans_url, '/xhr_streaming', XhrReceiver, utils.XHRObject);
@@ -1400,6 +1403,7 @@ XhrStreamingTransport.enabled = function() {
     return (_window.XMLHttpRequest &&
             'withCredentials' in new XMLHttpRequest());
 };
+XhrStreamingTransport.roundTrips = 2; // preflight, ajax
 
 // According to:
 //   http://stackoverflow.com/questions/1641507/detect-browser-support-for-cross-domain-xmlhttprequests
@@ -1416,6 +1420,7 @@ XdrStreamingTransport.prototype = new AjaxBasedTransport();
 XdrStreamingTransport.enabled = function() {
     return !!_window.XDomainRequest;
 };
+XdrStreamingTransport.roundTrips = 2; // preflight, ajax
 
 
 
@@ -1427,6 +1432,7 @@ var XhrPollingTransport = SockJS['xhr-polling'] = function(ri, trans_url) {
 XhrPollingTransport.prototype = new AjaxBasedTransport();
 
 XhrPollingTransport.enabled = XhrStreamingTransport.enabled;
+XhrPollingTransport.roundTrips = 2; // preflight, ajax
 
 
 // xdr-polling
@@ -1437,7 +1443,8 @@ var XdrPollingTransport = SockJS['xdr-polling'] = function(ri, trans_url) {
 XdrPollingTransport.prototype = new AjaxBasedTransport();
 
 XdrPollingTransport.enabled = XdrStreamingTransport.enabled;
-//         [*] End of lib/trans-xhr-streaming.js
+XdrPollingTransport.roundTrips = 2; // preflight, ajax
+//         [*] End of lib/trans-xhr.js
 
 
 //         [*] Including lib/trans-iframe.js
@@ -1608,28 +1615,36 @@ SockJS.bootstrap_iframe = function() {
 
 
 //         [*] Including lib/info.js
-var InfoReceiver = function(base_url) {
+var InfoReceiver = function(base_url, AjaxObject) {
     var that = this;
-    that.base_url = base_url;
-    that.t0 = (new Date()).getTime();
-    utils.delay(function(){that.doXhr();});
+    utils.delay(function(){that.doXhr(base_url, AjaxObject);});
 };
 
 InfoReceiver.prototype = new EventEmitter(['finish']);
 
-InfoReceiver.prototype.doXhr = function() {
+InfoReceiver.prototype.doXhr = function(base_url, AjaxObject) {
     var that = this;
-    var AjaxObject = _window.XDomainRequest ? utils.XDRObject : utils.XHRObject;
-    var xo = new AjaxObject('GET', that.base_url + '/info' , null);
+    var t0 = (new Date()).getTime();
+    var xo = new AjaxObject('GET', base_url + '/info' , null);
+
+    var tref = utils.delay(8000,
+                           function(){xo.ontimeout();});
+
     xo.onfinish = function(status, text) {
+        clearTimeout(tref);
+        tref = null;
         if (status === 200) {
-            var rtt = (new Date()).getTime() - that.t0;
+            var rtt = (new Date()).getTime() - t0;
             var info = JSON.parse(text);
             if (typeof info !== 'object') info = {};
             that.emit('finish', info, rtt);
         } else {
             that.emit('finish');
         }
+    };
+    xo.ontimeout = function() {
+        xo.close();
+        that.emit('finish');
     };
 };
 
@@ -1676,26 +1691,29 @@ var InfoReceiverFake = function() {
 };
 InfoReceiverFake.prototype = new EventEmitter(['finish']);
 
-
-
 var createInfoReceiver = function(base_url) {
-    // 1. Local url or CORS
-    if (utils.isLocalUrl(base_url) ||
-        _window.XDomainRequest ||
-        (_window.XMLHttpRequest && 'withCredentials' in new XMLHttpRequest())) {
-        return new InfoReceiver(base_url);
+    if (utils.isLocalUrl(base_url)) {
+        // If, for some reason, we have SockJS locally - there's no
+        // need to start up the complex machinery. Just use ajax.
+        return new InfoReceiver(base_url, utils.XHRObject);
     }
-    // 2. Iframe - Opera
-    if (IframeTransport.enabled()) {
+    switch (utils.isXHRCorsCapable()) {
+    case 1:
+        return new InfoReceiver(base_url, utils.XHRObject);
+    case 2:
+        return new InfoReceiver(base_url, utils.XDRObject);
+    case 3:
+        // Opera
         return new InfoReceiverIframe(base_url);
-    }
-    // 3. IE 7
-    return new InfoReceiverFake();
+    default:
+        // IE 7
+        return new InfoReceiverFake();
+    };
 };
 
 
 var WInfoReceiverIframe = FacadeJS['w-iframe-info-receiver'] = function(ri, _trans_url, base_url) {
-    var ir = new InfoReceiver(base_url);
+    var ir = new InfoReceiver(base_url, utils.XHRObject);
     ir.onfinish = function(info, rtt) {
         ri._didMessage('m'+JSON.stringify([info, rtt]));
         ri._didClose();
@@ -1975,8 +1993,6 @@ SockJS.getUtils = function(){
 SockJS.getIframeTransport = function(){
     return IframeTransport;
 };
-
-utils.info = InfoReceiver;
 //         [*] End of lib/test-hooks.js
 
                   return SockJS;
