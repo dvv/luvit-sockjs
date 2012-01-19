@@ -103,6 +103,13 @@ local function SockJS_handler(options)
       elseif path == '/websocket' then
         if raw_websocket then
           raw_websocket(req, res, function ()
+            options.onopen(res)
+            req:on('message', function (m)
+              options.onmessage(res, m)
+            end)
+            res:on('end', function ()
+              options.onclose(res)
+            end)
           end)
           return
         else

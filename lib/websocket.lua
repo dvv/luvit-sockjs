@@ -49,7 +49,7 @@ local function handler(self, options)
   self.curr_size, self.max_size = 0, options.response_limit
 
   -- handshake...
-  shaker.handshake(self.req, self, origin, location, function ()
+  shaker(self.req, self, origin, location, function ()
     -- setup sender
     self.send_frame = self.send
     -- setup receiver
