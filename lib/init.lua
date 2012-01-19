@@ -38,7 +38,7 @@ local function SockJS_handler(options)
     origins = {
       '*:*'
     },
-    disabled_transports = { },
+    websocket = true,
     cache_age = 365 * 24 * 60 * 60,
     --new = require('websocket/lib/connection').new,
     onopen = function (self) end,
@@ -50,8 +50,8 @@ local function SockJS_handler(options)
 
   -- compose raw websocket handler
   local raw_websocket
-  if not options.disabled_transports.websocket then
-    raw_websocket = require('websocket')(options)
+  if options.websocket then
+    raw_websocket = require('websocket') --(options)
   end
 
   -- handler
@@ -103,8 +103,10 @@ local function SockJS_handler(options)
       elseif path == '/websocket' then
         if raw_websocket then
           raw_websocket(req, res, function ()
-            res:serve_not_found()
           end)
+          return
+        else
+          res:serve_not_found()
           return
         end
       else
@@ -121,12 +123,14 @@ local function SockJS_handler(options)
               other_handlers.options(res, options)
             else
               -- ignore disabled transports
+              --[[
               for t, _ in pairs(options.disabled_transports) do
                 if t == transport then
                   res:serve_not_found()
                   return
                 end
               end
+              ]]--
               local handler = transport_handlers[transport]
               if handler then
                 handler = handler[req.method]

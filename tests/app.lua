@@ -36,7 +36,7 @@ app:mount('/disabled_websocket_echo', require('sockjs')({
   response_limit = 4096,
   cookie_needed = true,
   sockjs_url = '/sockjs.js',
-  disabled_transports = { websocket = true },
+  websocket = false,
   onopen = function (conn)
     --p('OPEN', conn)
   end,

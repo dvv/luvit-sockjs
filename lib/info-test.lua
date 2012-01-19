@@ -4,6 +4,8 @@ local date, time = OS.date, OS.time
 
 local delay = require('timer').set_timeout
 
+local Math = require('math')
+
 return {
 
   GET = function (self, options)
@@ -12,9 +14,10 @@ return {
     self:set_header('Content-Type', 'application/json; charset=UTF-8')
     self:set_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
     self:finish(JSON.stringify({
-      websocket = not options.disabled_transports.websocket,
+      websocket = options.websocket,
       cookie_needed = options.cookie_needed,
       origins = options.origins,
+      entropy = Math.random(0, 0xFFFFFFFF),
     }))
   end,
 
