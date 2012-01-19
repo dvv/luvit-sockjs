@@ -59,8 +59,8 @@ local function SockJS_handler(options)
 
     res.req = req
 
-    req:once('error', function(err)
-      debug('REQ-ERROR', err)
+    req:once('error', function(...)
+      debug('REQ-ERROR', ...)
       return req:close()
     end)
     res:once('error', function(err)

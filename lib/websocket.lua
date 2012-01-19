@@ -52,12 +52,16 @@ local function handler(self, options)
   shaker(self.req, self, origin, location, function ()
     -- setup sender
     self.send_frame = self.send
+    self.req:once('close', function (...)
+p('_CLOSE', ...)
+      self:finish()
+    end)
     -- setup receiver
     self.req:on('message', function (raw)
       local status, message = pcall(JSON.parse, raw)
       if not status then
-        p('BROKEN', raw)
-        self.session:close(1002, 'Broken framing.')
+p('BROKEN', raw)
+        self:finish()
       else
         self.session:onmessage(message)
       end
