@@ -1,6 +1,15 @@
 #!/usr/bin/env luvit
 
 process.env.DEBUG = '1'
+_G.assert = function(cond, msg)
+  if not cond then
+    p('ASSERTION FAILED', msg)
+  end
+  return cond
+end
+_G.error = function(...)
+  p('EXCEPTION', ...)
+end
 
 -- create application
 local app = require('app').new()
