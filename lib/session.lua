@@ -1,10 +1,8 @@
-local EventEmitter = setmetatable({ }, {
-  __index = require('emitter').meta
-})
-local set_timeout, clear_timer
+local EventEmitter = require('core').Emitter
+local setTimeout, clearTimer
 do
   local _table_0 = require('timer')
-  set_timeout, clear_timer = _table_0.set_timeout, _table_0.clear_timer
+  setTimeout, clearTimer = _table_0.setTimeout, _table_0.clearTimer
 end
 local JSON = require('json')
 local uuid = require('uuid')
@@ -47,46 +45,50 @@ Session = (function()
       if self.ready_state == Session.CLOSING then
         conn:send_frame(self.close_frame)
         if self.to_tref then
-          clear_timer(self.to_tref)
+          clearTimer(self.to_tref)
         end
-        self.to_tref = set_timeout(self.disconnect_delay, self.ontimeout, self)
+        self.to_tref = setTimeout(self.disconnect_delay, self.ontimeout, self)
         return
       end
       self.conn = conn
       conn.session = self
-      conn:once('closed', function()
+      --[[conn:once('closed', function()
         p('CLOSED')
         self:unbind()
-      end)
-      --[[conn:once('end', function()
-        p('ENDED')
-        self:unbind()
       end)]]--
+      conn:once('end', function()
+        p('ENDED')
+        self:unbind(true)
+      end)
       self.req = req
       if self.ready_state == Session.CONNECTING then
         self.conn:send_frame('o')
         self.ready_state = Session.OPEN
-        set_timeout(0, self.emit_connection_event)
+        setTimeout(0, self.emit_connection_event)
       end
       if self.to_tref then
-        clear_timer(self.to_tref)
+        clearTimer(self.to_tref)
         self.to_tref = nil
       end
       self:flush()
     end,
-    unbind = function(self)
+    unbind = function(self, force)
       if self.conn then
         self.conn.session = nil
         self.conn = nil
       end
       if self.to_tref then
-        clear_timer(self.to_tref)
+        clearTimer(self.to_tref)
       end
-      self.to_tref = set_timeout(self.disconnect_delay, self.ontimeout, self)
+      if force then
+        self:ontimeout()
+      else
+        self.to_tref = setTimeout(self.disconnect_delay, self.ontimeout, self)
+      end
     end,
     ontimeout = function(self)
       if self.to_tref then
-        clear_timer(self.to_tref)
+        clearTimer(self.to_tref)
         self.to_tref = nil
       end
       p('TIME', self.ready_state, self.conn ~= nil)
@@ -130,19 +132,19 @@ Session = (function()
         self.conn:send_frame('a' .. '[' .. join(quoted, ',') .. ']')
       else
         if self.to_tref then
-          clear_timer(self.to_tref)
+          clearTimer(self.to_tref)
           self.to_tref = nil
         end
         local heartbeat
         heartbeat = function ()
           if self.conn then
             self.conn:send_frame('h')
-            self.to_tref = set_timeout(self.heartbeat_delay, heartbeat)
+            self.to_tref = setTimeout(self.heartbeat_delay, heartbeat)
           else
             self.to_tref = nil
           end
         end
-        self.to_tref = set_timeout(self.heartbeat_delay, heartbeat)
+        self.to_tref = setTimeout(self.heartbeat_delay, heartbeat)
       end
       return 
     end,
@@ -173,7 +175,7 @@ Session = (function()
         return false
       end
       Table.insert(self.send_buffer, type(payload) == 'table' and Table.concat(payload, ',') or tostring(payload))
-      set_timeout(0, function()
+      setTimeout(0, function()
         return self:flush()
       end)
       return true
@@ -197,7 +199,7 @@ Session = (function()
       if self.sid then
         sessions[self.sid] = self
       end
-      self.to_tref = set_timeout(self.disconnect_delay, self.ontimeout, self)
+      self.to_tref = setTimeout(self.disconnect_delay, self.ontimeout, self)
       self.emit_connection_event = function()
         self.emit_connection_event = nil
         options.onopen(self)

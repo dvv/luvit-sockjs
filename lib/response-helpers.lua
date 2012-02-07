@@ -1,16 +1,16 @@
-local Response = require('response')
+local Response = require('http').Response
 
-function Response.prototype:handle_xhr_cors()
+function Response:handle_xhr_cors()
   local origin = self.req.headers['origin'] or '*'
-  self:set_header('Access-Control-Allow-Origin', origin)
+  self:setHeader('Access-Control-Allow-Origin', origin)
   local headers = self.req.headers['access-control-request-headers']
   if headers then
-    self:set_header('Access-Control-Allow-Headers', headers)
+    self:setHeader('Access-Control-Allow-Headers', headers)
   end
-  self:set_header('Access-Control-Allow-Credentials', 'true')
+  self:setHeader('Access-Control-Allow-Credentials', 'true')
 end
 
-function Response.prototype:handle_balancer_cookie()
+function Response:handle_balancer_cookie()
   if not self.req.cookies then
     self.req.cookies = { }
     if self.req.headers.cookie then
@@ -23,10 +23,10 @@ function Response.prototype:handle_balancer_cookie()
     end
   end
   local jsid = self.req.cookies['JSESSIONID'] or 'dummy'
-  self:add_header('Set-Cookie', 'JSESSIONID=' .. jsid .. '; path=/')
+  self:addHeader('Set-Cookie', 'JSESSIONID=' .. jsid .. '; path=/')
 end
 
-function Response.prototype:write_frame(payload, callback)
+function Response:write_frame(payload, callback)
   if self.max_size then
     self.curr_size = self.curr_size + #payload
   end

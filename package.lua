@@ -5,7 +5,7 @@ return {
   keywords = { 'websocket', 'sockjs', 'real-time', 'stack', 'luvit', 'libuv' },
   author = 'Vladimir Dronnikov <dronnikov@gmail.com>',
   dependencies = {
-    websocket = 'https://github.com/luvit/websocket/zipball/master',
-    app = 'https://github.com/luvit/app/zipball/master',
+    websocket = 'https://github.com/dvv/luvit-websocket/zipball/master',
+    --app = 'https://github.com/dvv/luvit-app/zipball/master',
   },
 }

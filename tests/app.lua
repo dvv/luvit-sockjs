@@ -12,7 +12,7 @@ _G.error = function(...)
 end
 
 -- create application
-local app = require('app').new()
+local app = require('app'):new()
 
 app:mount('/echo', require('sockjs')({
   root = 'WS',
@@ -119,7 +119,7 @@ app:mount('/broadcast', require('sockjs')({
   end,
 }))
 
-app:mount('/', 'static', {
+app:mount('/', require('static'), {
   directory = __dirname
 })
 

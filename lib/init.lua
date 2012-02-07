@@ -51,7 +51,7 @@ local function SockJS_handler(options)
   -- compose raw websocket handler
   local raw_websocket
   if options.websocket then
-    raw_websocket = require('websocket') --(options)
+    raw_websocket = require('websocket').handler --(options)
   end
 
   -- handler
@@ -108,8 +108,13 @@ local function SockJS_handler(options)
               options.onmessage(res, m)
             end)
             res:on('end', function ()
+            p('EEEND')
               options.onclose(res)
             end)
+            --[[req:on('close', function ()
+            p('CCCCLO')
+              options.onclose(res)
+            end)]]--
           end)
           return
         else

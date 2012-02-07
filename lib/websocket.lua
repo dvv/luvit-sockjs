@@ -5,8 +5,7 @@
 local Table = require('table')
 local JSON = require('json')
 
-local WebSocket_Hixie76 = require('websocket/lib/hixie76').handshake
-local WebSocket_Hybi10 = require('websocket/lib/hybi10').handshake
+local WebSocket = require('websocket')
 
 local function verify_origin(origin, origins)
   return true
@@ -17,50 +16,20 @@ local function handler(self, options)
   -- defaults
   if not options then options = { } end
 
-  -- turn chunking mode off
-  self.auto_chunked = false
+  WebSocket.handler(self.req, self, function ()
 
-  -- request sanity check
-  if (self.req.headers.upgrade or ''):lower() ~= 'websocket' then
-    return self:send(400, 'Can "Upgrade" only to "WebSocket".')
-  end
-  if not (',' .. (self.req.headers.connection or ''):lower() .. ','):match('[^%w]+upgrade[^%w]+') then
-    return self:send(400, 'Bad Request')
-  end
-  local origin = self.req.headers.origin
-  if not verify_origin(origin, options.origins) then
-    return self:send(401, 'Unauthorized')
-  end
+    self.protocol = 'websocket'
+    self.curr_size, self.max_size = 0, options.response_limit
 
-  -- guess the protocol
-  local location = origin and origin:sub(1, 5) == 'https' and 'wss' or 'ws'
-  location = location .. '://' .. self.req.headers.host .. self.req.url
-  -- determine protocol version
-  local ver = self.req.headers['sec-websocket-version']
-  local shaker = WebSocket_Hixie76
-  if ver == '7' or ver == '8' or ver == '13' then
-    shaker = WebSocket_Hybi10
-  end
-
-  -- disable buffering
-  self:nodelay(true)
-
-  self.protocol = 'websocket'
-  self.curr_size, self.max_size = 0, options.response_limit
-
-  -- handshake...
-  shaker(self.req, self, origin, location, function ()
     -- setup sender
     self.send_frame = self.send
     self.req:once('close', function (...)
-p('_CLOSE', ...)
       self:finish()
     end)
     -- setup receiver
     self.req:on('message', function (raw)
       local status, message = pcall(JSON.parse, raw)
       if not status then
-p('BROKEN', raw)
         self:finish()
       else
         self.session:onmessage(message)
@@ -68,6 +37,7 @@ p('BROKEN', raw)
     end)
     -- and register connection
     self:create_session(self.req, self, nil, options)
+
   end)
 
 end
