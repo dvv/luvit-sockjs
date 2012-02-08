@@ -26,6 +26,7 @@ local function handler(self, options)
     self.req:once('close', function (...)
       self:finish()
     end)
+
     -- setup receiver
     self.req:on('message', function (raw)
       local status, message = pcall(JSON.parse, raw)
@@ -35,6 +36,7 @@ local function handler(self, options)
         self.session:onmessage(message)
       end
     end)
+
     -- and register connection
     self:create_session(self.req, self, nil, options)
 

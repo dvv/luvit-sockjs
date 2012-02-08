@@ -22,7 +22,7 @@ local function handler(self, options, sid, transport)
   local xhr = transport == 'xhr_send'
   if xhr then self:handle_xhr_cors() end
   self:handle_balancer_cookie()
-  self.auto_chunked = false
+  self.auto_chunked_encoding = false
   local ctype = self.req.headers['content-type'] or ''
   ctype = ctype:match('[^;]*')
   local decoder = allowed_content_types[transport][ctype]

@@ -7,14 +7,15 @@ _G.assert = function(cond, msg)
   end
   return cond
 end
-_G.error = function(...)
-  p('EXCEPTION', ...)
+_G.error = function(err, ...)
+  require('debug').traceback(err)
+  p('EXCEPTION', err, ...)
 end
 
 -- create application
 local app = require('app'):new()
 
-app:mount('/echo', require('sockjs')({
+app:mount('/echo', require('../')({
   root = 'WS',
   response_limit = 4096,
   cookie_needed = true,
@@ -40,7 +41,7 @@ app:mount('/echo', require('sockjs')({
   end,
 }))
 
-app:mount('/disabled_websocket_echo', require('sockjs')({
+app:mount('/disabled_websocket_echo', require('../')({
   root = 'WS1',
   response_limit = 4096,
   cookie_needed = true,
@@ -67,18 +68,17 @@ app:mount('/disabled_websocket_echo', require('sockjs')({
   end,
 }))
 
-app:mount('/close', require('sockjs')({
+app:mount('/close', require('../')({
   root = 'WS2',
   response_limit = 4096,
   cookie_needed = true,
   sockjs_url = '/sockjs.js',
   onopen = function (conn)
-    p('/CLOSE\\', conn.sid, conn.id)
     conn:close(3000, 'Go away!')
   end,
 }))
 
-app:mount('/amplify', require('sockjs')({
+app:mount('/amplify', require('../')({
   root = 'WS3',
   response_limit = 4096,
   cookie_needed = true,
@@ -101,7 +101,7 @@ app:mount('/amplify', require('sockjs')({
 }))
 
 local broadcast = { }
-app:mount('/broadcast', require('sockjs')({
+app:mount('/broadcast', require('../')({
   root = 'WS4',
   response_limit = 4096,
   cookie_needed = true,
@@ -119,9 +119,9 @@ app:mount('/broadcast', require('sockjs')({
   end,
 }))
 
-app:mount('/', require('static'), {
+app:mount('/', require('static')('', {
   directory = __dirname
-})
+}))
 
 -- run server
 app:run(8081, '0.0.0.0')

@@ -1,4 +1,4 @@
-/* SockJS client, version 0.2.0, http://sockjs.org, MIT License
+/* SockJS client, version 0.2.0.2.g2992, http://sockjs.org, MIT License
 
 Copyright (C) 2011 VMware, Inc.
 
@@ -808,7 +808,7 @@ var SockJS = function(url, dep_protocols_whitelist, options) {
 // Inheritance
 SockJS.prototype = new REventTarget();
 
-SockJS.version = "0.2.0";
+SockJS.version = "0.2.0.2.g2992";
 
 SockJS.CONNECTING = 0;
 SockJS.OPEN = 1;
@@ -1604,7 +1604,7 @@ SockJS.bootstrap_iframe = function() {
 
     // alert('test ticker');
     // facade = new FacadeJS();
-    // facade._transport = new FacadeJS['w-iframe-xhr-polling'](facade, 'http://mmajkowski.eng.vmware.com:9999/ticker/12/basd');
+    // facade._transport = new FacadeJS['w-iframe-xhr-polling'](facade, 'http://host.com:9999/ticker/12/basd');
 
     utils.attachMessage(onMessage);
 

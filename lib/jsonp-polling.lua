@@ -2,7 +2,7 @@ local JSON = require('json')
 
 local function handler(self, options, sid)
   self:handle_balancer_cookie()
-  self.auto_chunked = false
+  self.auto_chunked_encoding = false
   local query = self.req.uri.query
   local callback = query.c or query.callback
   if not callback then

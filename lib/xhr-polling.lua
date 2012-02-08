@@ -1,7 +1,7 @@
 local function handler(self, options, sid)
   self:handle_xhr_cors()
   self:handle_balancer_cookie()
-  self.auto_chunked = false
+  self.auto_chunked_encoding = false
   self:send(200, nil, {
     ['Content-Type'] = 'application/javascript; charset=UTF-8'
   }, false)

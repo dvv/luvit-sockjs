@@ -59,15 +59,14 @@ local function SockJS_handler(options)
 
     res.req = req
 
-    req:once('error', function(...)
-      debug('REQ-ERROR', ...)
-      return req:close()
-    end)
-    res:once('error', function(err)
-      debug('RES-ERROR', err)
-      res.closed = true
-      return res:close()
-    end)
+    -- conform HTTP 1.0
+    -- N.B. uncomment to pass protocol tests
+    --[[do
+      if req.version_minor == 0 then
+        res.auto_chunked_encoding = false
+        res:setHeader('Connection', 'close')
+      end
+    end]]--
 
     res.get_session = function(self, sid)
       return Session.get(sid)
@@ -107,14 +106,10 @@ local function SockJS_handler(options)
             req:on('message', function (m)
               options.onmessage(res, m)
             end)
-            res:on('end', function ()
-            p('EEEND')
-              options.onclose(res)
+            req:on('close', function (...)
+              options.onclose(res, ...)
+              res:finish()
             end)
-            --[[req:on('close', function ()
-            p('CCCCLO')
-              options.onclose(res)
-            end)]]--
           end)
           return
         else

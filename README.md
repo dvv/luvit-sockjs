@@ -1,10 +1,10 @@
 # SockJS-luvit
 
-SockJS server written in [Lua](http://www.lua.org) to run under [Luvit](https://github.com/creationix/luvit).
+SockJS server in [Luvit](https://github.com/luvit/luvit).
 
 ## Installation
 
-    git clone https://github.com/dvv/luvit-sockjs
+    git clone https://github.com/dvv/luvit-sockjs sockjs
     cd sockjs
     lui
 
@@ -12,7 +12,7 @@ These commands will build luvit and necessary libraries (crypto).
 
 ## Tests
 
-    cd tests/qunit
+    cd tests
     ./app.lua
     open http://localhost:8081/index.html
 

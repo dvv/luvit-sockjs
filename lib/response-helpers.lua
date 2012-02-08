@@ -31,13 +31,7 @@ function Response:write_frame(payload, callback)
     self.curr_size = self.curr_size + #payload
   end
   self:write(payload, function (err)
-    p('WR', self.req.url, self.curr_size, '/', self.max_size)
     if self.max_size and self.curr_size >= self.max_size then
-      p('FIN?', self.req.url)
-      --[[self:finish(function()
-        p('FIN!', self.req.url)
-        if callback then callback(err) ; return end
-      end)]]--
       self:finish()
     end
     if callback then callback() end

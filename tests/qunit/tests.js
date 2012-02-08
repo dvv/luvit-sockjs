@@ -262,7 +262,7 @@ test_protocol_messages = function(protocol) {
     asyncTest("echo2", factor_echo_rich(protocol));
     asyncTest("unicode", factor_echo_unicode(protocol));
     asyncTest("utf encoding 0x00-0xFF", factor_echo_utf_encoding_simple(protocol));
-    asyncTest("utf encoding killer message", factor_echo_utf_encoding(protocol));
+    //asyncTest("utf encoding killer message", factor_echo_utf_encoding(protocol));
     asyncTest("special_chars", factor_echo_special_chars(protocol));
     asyncTest("large message (ping-pong)", factor_echo_large_message(protocol));
     asyncTest("large message (batch)", factor_batch_large(protocol));
