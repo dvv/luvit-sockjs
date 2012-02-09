@@ -1966,7 +1966,8 @@ var XhrReceiver = function(url, AjaxObject) {
     that.xo.onfinish = function(status, text) {
         that.xo.onchunk(status, text);
         that.xo = null;
-        var reason = status === 200 ? 'network' : 'permanent';
+        // DVV
+        var reason = status === 200 || status === 0 ? 'network' : 'permanent';
         that.dispatchEvent(new SimpleEvent('close', {reason: reason}));
     }
 };

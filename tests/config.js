@@ -4,5 +4,5 @@ window.client_opts = {
   // url, like: "http://localhost:8080"
   //disabled_transports: [],
   url: '',
-  sockjs_opts: {devel:true, debug:true}
+  sockjs_opts: {devel:true, debug:true, info: {websocket: true, cookie_needed: false}}
 };
